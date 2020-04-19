@@ -8,7 +8,7 @@ from ytd.compat import quote
 
 user_agent = 'yahoo-ticker-symbol-downloader'
 general_search_characters = 'abcdefghijklmnopqrstuvwxyz0123456789.='
-first_search_characters = 'abcdefghijklmnopqrstuvwxyz'
+first_search_characters = '^abcdefghijklmnopqrstuvwxyz'
 
 class SymbolDownloader:
     """Abstract class"""
@@ -24,6 +24,7 @@ class SymbolDownloader:
         self._add_queries()
         self.current_q = self.queries[0]
         self.done = False
+        self.IsFirstRequest= True #quick and dirty fix to not skip first character ('a' e.g. for APPL) in download queue
 
     def _add_queries(self, prefix=''):
         # This method will add (prefix+)a...z to self.queries
@@ -82,14 +83,18 @@ class SymbolDownloader:
             self.current_q = self.queries[self._getQueryIndex() + 1]
 
     def nextRequest(self, insecure=False, pandantic=False):
-        self._nextQuery()
+        if not self.IsFirstRequest:
+            self._nextQuery()
+        else:
+            self.IsFirstRequest=False
+            
         success = False
         retryCount = 0
         json = None
         # Eponential back-off algorithm
-        # to attempt 5 more times sleeping 5, 25, 125, 625, 3125 seconds
+        # to attempt 10 more times sleeping 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024 seconds
         # respectively.
-        maxRetries = 5
+        maxRetries = 10
         while(success == False):
             try:
                 json = self._fetch(insecure)
@@ -100,7 +105,7 @@ class SymbolDownloader:
                     requests.exceptions.ConnectionError) as ex:
                 if retryCount < maxRetries:
                     attempt = retryCount + 1
-                    sleepAmt = int(math.pow(5,attempt))
+                    sleepAmt = int(math.pow(2,attempt))
                     print("Retry attempt: " + str(attempt) + " of " + str(maxRetries) + "."
                         " Sleep period: " + str(sleepAmt) + " seconds."
                         )
